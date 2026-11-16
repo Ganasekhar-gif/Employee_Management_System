@@ -84,7 +84,12 @@ Mention essential primary keys, foreign keys and important constraints.
 
 **Important:** These three sections are an initial draft, not a finalized design. Provide concise foundational ideas, basic examples and starting points that I can manually review, expand and modify later. Do not over-engineer or attempt to finalize every business rule at this stage.
 
-## 2. Prompt Tracking Document
+
+### Prompt Tracking Document (Manual Written Prompt)
+
+okay now i have manually updated the project documentation for updated workflow approach and supporting database schema new roles and responsibilities and limitations so can you verify and make the documentation clear concise and technically good and easily understandable and easy to represent and explainable and new members can get a brief idea about the sections so make only necessary changes if required if the current documentation is good then leave it as it is and update the prompt log as well so my main requirement is to make a clean technical good understandable easy to gain attention professional simple concise and an MVP project documentation 
+
+## 2. Prompt Tracking Document (AI Agent Prompt)
 
 Create `docs/prompt-log.md`.
 
@@ -130,3 +135,7 @@ After completion, provide:
 Do not begin application implementation. Wait for my next instruction.
 
 create the documents and keep them in docs folder in my project
+
+### Prompt 002
+
+okay now tell me is my final project documentation is clear and i have one main requirement can another technical member can be easily understand the project documentation for the first time is it a clear professional MVP project documentation and as of now i feel like a little bit too long the documentation is and i feel like we can trim it and make it as a good professional easy to understand while still has the core of teh content and professional ready to use project documentation
