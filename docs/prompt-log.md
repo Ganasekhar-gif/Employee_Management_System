@@ -134,8 +134,4 @@ After completion, provide:
 
 Do not begin application implementation. Wait for my next instruction.
 
-create the documents and keep them in docs folder in my project
 
-### Prompt 002
-
-okay now tell me is my final project documentation is clear and i have one main requirement can another technical member can be easily understand the project documentation for the first time is it a clear professional MVP project documentation and as of now i feel like a little bit too long the documentation is and i feel like we can trim it and make it as a good professional easy to understand while still has the core of teh content and professional ready to use project documentation
