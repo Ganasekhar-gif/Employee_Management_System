@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: expense-management
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/expense_management}
+    username: ${DB_USERNAME:expense_app}
+    password: ${DB_PASSWORD:expense_app}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+app:
+  bootstrap-admin:
+    email: ${BOOTSTRAP_ADMIN_EMAIL:admin@company.com}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    full-name: System Administrator

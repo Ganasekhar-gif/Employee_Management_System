@@ -135,3 +135,170 @@ After completion, provide:
 Do not begin application implementation. Wait for my next instruction.
 
 
+### Initial Project implementation (Manual Written Prompt)
+
+okay now we came to the actual implementation part where we should design technical reliable reusable durable project following all the OOAD and SOLID principles and we design this project carefully so instead of creating all the project files once we will create one service or one part at a time then i can understand while doing and i can connect dots and learn springboot concepts as well so yeah lets implement the first initial part in our project
+
+
+### Initial Project Implementation (AI Agent Prompt)
+
+# Expense Management System: Step-by-Step Implementation and Learning
+
+We have completed the initial project documentation, including the problem statement, architecture, business workflows, database schema, ER diagram, roles and responsibilities, and MVP limitations.
+
+Now we are moving to the actual implementation phase.
+
+I want to build this application carefully, focusing on **good software engineering practices, maintainable architecture, reusability, and strong fundamentals of Java and Spring Boot**.
+
+My goal is not just to complete the project but to understand the engineering decisions behind every component while implementing it.
+
+## 1. Development Philosophy
+
+Follow an incremental, learn-by-doing approach.
+
+- Do not generate the entire project or all its files at once.
+- Implement one component, service, module, or feature at a time.
+- Explain the design and responsibilities before writing the code.
+- Help me understand how each component connects to the existing architecture.
+- Introduce new concepts only when they become relevant to the implementation.
+- Avoid unnecessary abstractions, premature optimization, and overengineering.
+
+I want to understand the reasoning behind the implementation rather than simply copy and paste code.
+
+## 2. Software Design and Engineering Principles
+
+Throughout development, follow:
+
+- **OOAD:** Object-Oriented Analysis and Design.
+- **SOLID:** Apply the five SOLID principles wherever they genuinely improve the design.
+- **Separation of Concerns:** Keep business logic, persistence, API handling, and infrastructure responsibilities separate.
+- **Encapsulation and Abstraction:** Design components with clear responsibilities and interfaces.
+- **Dependency Injection:** Use Spring's dependency injection instead of unnecessary manual object creation.
+- **Reusability:** Avoid duplicated logic and design reusable components where appropriate.
+- **Maintainability:** Prefer simple, readable, testable, and loosely coupled code.
+
+Do not force design patterns or SOLID principles into every class. Explain when a principle is useful and when introducing additional abstraction is unnecessary.
+
+## 3. Technology Stack
+
+Use the agreed project stack:
+
+- Java 21
+- Spring Boot
+- Maven
+- PostgreSQL
+- Spring Data JPA / Hibernate
+- Flyway for database migrations
+- REST APIs
+
+Use appropriate Spring Boot conventions and modern Java practices.
+
+## 4. Implementation Approach
+
+For every new component or feature, follow this process:
+
+### Step 1: Understand the Requirement
+Explain:
+- What we are implementing.
+- Why the component is required.
+- Which business workflow it supports.
+- Which database tables and existing components it interacts with.
+
+### Step 2: Design Before Coding
+Explain:
+- The component's responsibilities.
+- Its interactions with other components.
+- The proposed class structure and relationships.
+- Relevant OOAD and SOLID principles.
+- Important design decisions and trade-offs.
+
+### Step 3: Implement Incrementally
+- Create only the files required for the current implementation step.
+- Explain the purpose of each file and important code sections.
+- Avoid generating unrelated or future components.
+- Follow consistent naming conventions and package organization.
+
+### Step 4: Test and Validate
+- Explain how to run and test the implementation.
+- Provide relevant test cases.
+- Cover important validation, failure scenarios, and edge cases.
+- Help me understand errors and debug them rather than simply replacing the code.
+
+### Step 5: Connect the Concepts
+Explain how the implemented component connects to:
+- The overall application architecture.
+- Other modules and services.
+- The database schema and business workflow.
+- Java, Spring Boot, OOAD, and SOLID concepts.
+
+### Step 6: Review Before Moving Forward
+Before starting the next component:
+- Review the current implementation.
+- Identify unnecessary complexity, design issues, or potential improvements.
+- Confirm that the current step is understood and working.
+- Maintain a clear record of implementation progress and important decisions.
+
+## 5. Code Quality Expectations
+
+All implementation decisions should prioritize:
+
+- Clear and meaningful class, method, and variable names.
+- Small, focused classes and methods.
+- Proper exception handling and input validation.
+- Appropriate transaction boundaries.
+- Secure handling of authentication, authorization, and sensitive data.
+- Testable business logic.
+- Consistent API response and error-handling conventions.
+- Database integrity and reliable data operations.
+
+Do not introduce advanced infrastructure or unnecessary dependencies unless the MVP actually requires them.
+
+## 6. Teaching and Collaboration Style
+
+Treat this as a collaborative software development and learning process.
+
+- Explain concepts in a simple but technically accurate manner.
+- Compare Java and Spring Boot concepts with Python/FastAPI when useful, since I have prior Python experience.
+- Challenge my design decisions when they are incorrect or unnecessarily complicated.
+- Explain why an alternative is better instead of silently changing my approach.
+- Ask for clarification when an important requirement is ambiguous.
+- Do not assume I understand a new Java or Spring Boot concept just because I understand its Python equivalent.
+
+I should be able to explain the purpose of every important class, interface, relationship, and design decision in the project.
+
+## 7. Starting Point
+
+Let's begin with the first implementation step.
+
+First, inspect the agreed architecture, database schema, and project documentation. Then identify the appropriate initial development milestone.
+
+Start with the minimum required project setup and foundational configuration. Do not jump directly into implementing all entities, repositories, services, controllers, or APIs.
+
+Explain the first step, its design, and the concepts involved. Implement it incrementally and wait for my understanding and validation before proceeding.
+
+**Our overall goal is to build a technically reliable, maintainable, reusable, and well-structured Expense Management System while developing strong practical skills in Java, Spring Boot, OOAD, SOLID, and backend software engineering.**
+
+
+
+### Version Mismatch Adjustment (Manual Written)
+
+no i cant update javac version so lets stick with the current versions and design the project compatable with the current versions and also i dont have docker compose in my system to compose docker images and build so also taking consideration of this and design the project 
+
+kallaganasekhar@PPB-LAP-00041:~$ java --version
+openjdk 21.0.13.0.3 2026-10-24
+OpenJDK Runtime Environment (build 21.0.13.0.3+1-1-24.04.1-Ubuntu)
+OpenJDK 64-Bit Server VM (build 21.0.13.0.3+1-1-24.04.1-Ubuntu, mixed mode, sharing)
+kallaganasekhar@PPB-LAP-00041:~$ javac --version
+javac 17.0.21.0.3
+
+this is my current versions and i dont have postgrSQL installed in my system although i have mongoDB compose installed so this is the available tech stack design the project now according to the tech stack available and also explain me how can i test the initial implementation explain it briefly what ahs completed till now and how can i test its behaviour and working 
+
+
+### DataBase Schema Design ( Manual Written Prompt)
+
+yeah the run was successfull and now i will commit manually so dont commit or push without any further instruction so now can we go to the next phase in the implementation creating required tables and starts writing the backend application code following all OOAD and SOLID principles yeah go ahead and starts implementing the next phase
+
+
+###
+
+yeah 15 test cases run successfully so lets implement the next phase and tell me after a milestone or after a service implementation completed then i am gonna commit manually to github so for now lets implement the next phase and after implementation tell me what changes did you make and the implementation details and how can i test the workflow and detect any earlier bugs before proceeding to the next step 
