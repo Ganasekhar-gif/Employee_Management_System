@@ -6,17 +6,13 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Objects;
 
 @Entity
 @Table(name = "users")
-public class User extends BaseEntity {
+public class User extends TimestampedEntity {
 
     private String email;
 
@@ -37,10 +33,6 @@ public class User extends BaseEntity {
     private User manager;
 
     private boolean active = true;
-
-    private Instant createdAt;
-
-    private Instant updatedAt;
 
     protected User() {
     }
@@ -70,6 +62,13 @@ public class User extends BaseEntity {
         this.manager = manager;
     }
 
+    public User approvingManager() {
+        if (manager != null) {
+            return manager;
+        }
+        return department == null ? null : department.getManager();
+    }
+
     public boolean canManage(Department targetDepartment) {
         return active
                 && hasRole(RoleName.MANAGER)
@@ -83,22 +82,6 @@ public class User extends BaseEntity {
 
     public void deactivate() {
         this.active = false;
-    }
-
-    @PrePersist
-    void onCreate() {
-        createdAt = now();
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = now();
-    }
-
-    // PostgreSQL TIMESTAMPTZ keeps microseconds; truncating here keeps the saved and reloaded values identical.
-    private static Instant now() {
-        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     public String getEmail() {
@@ -127,13 +110,5 @@ public class User extends BaseEntity {
 
     public boolean isActive() {
         return active;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
     }
 }

@@ -9,4 +9,12 @@ public enum RoleName {
     public boolean requiresDepartment() {
         return this == EMPLOYEE || this == MANAGER;
     }
+
+    public boolean canSubmitExpenses() {
+        return this == EMPLOYEE || this == MANAGER;
+    }
+
+    public boolean canBeNamedApprover() {
+        return this == MANAGER || this == FINANCE;
+    }
 }

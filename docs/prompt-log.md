@@ -299,6 +299,11 @@ this is my current versions and i dont have postgrSQL installed in my system alt
 yeah the run was successfull and now i will commit manually so dont commit or push without any further instruction so now can we go to the next phase in the implementation creating required tables and starts writing the backend application code following all OOAD and SOLID principles yeah go ahead and starts implementing the next phase
 
 
-###
+### Authentication implementation
 
 yeah 15 test cases run successfully so lets implement the next phase and tell me after a milestone or after a service implementation completed then i am gonna commit manually to github so for now lets implement the next phase and after implementation tell me what changes did you make and the implementation details and how can i test the workflow and detect any earlier bugs before proceeding to the next step 
+
+
+### backend core implementation
+
+okay yeah all test cases passed and i have created the users in the database using curl commands above now lets move to the next implementation phase and implement a complete milestone now and design the api paths and design the workflow that employees can submit a finance report the admins can configure the rules and the system gives the approvers path and the manager and other approvers will approve or reject the finance report submitted by the user the user/employee can watch the status of their report over the time and manager and other approvers can access the report and be able to accept it or reject it with reason and finance team can export the reports so also design the other tables with the schema noted in the project documentation and complete the milestone and tell me what is implemented and how can i test it and after the milestone give me the commit message

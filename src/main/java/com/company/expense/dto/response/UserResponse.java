@@ -1,6 +1,7 @@
 package com.company.expense.dto.response;
 
-import com.company.expense.entity.BaseEntity;
+import static com.company.expense.dto.response.EntityReferences.idOf;
+
 import com.company.expense.entity.User;
 import com.company.expense.enums.RoleName;
 import java.time.Instant;
@@ -25,9 +26,5 @@ public record UserResponse(
                 idOf(user.getManager()),
                 user.isActive(),
                 user.getCreatedAt());
-    }
-
-    private static Long idOf(BaseEntity entity) {
-        return entity == null ? null : entity.getId();
     }
 }

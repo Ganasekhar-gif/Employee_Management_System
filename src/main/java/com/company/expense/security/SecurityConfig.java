@@ -3,6 +3,7 @@ package com.company.expense.security;
 import com.company.expense.enums.RoleName;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -25,6 +26,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole(RoleName.ADMIN.name())
+                        .requestMatchers("/api/finance/**").hasRole(RoleName.FINANCE.name())
+                        .requestMatchers("/api/approvals/**")
+                        .hasAnyRole(RoleName.MANAGER.name(), RoleName.FINANCE.name())
+                        .requestMatchers(HttpMethod.POST, "/api/expenses/**")
+                        .hasAnyRole(RoleName.EMPLOYEE.name(), RoleName.MANAGER.name())
+                        .requestMatchers(HttpMethod.PUT, "/api/expenses/**")
+                        .hasAnyRole(RoleName.EMPLOYEE.name(), RoleName.MANAGER.name())
                         .anyRequest().authenticated())
                 .build();
     }

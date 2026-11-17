@@ -12,8 +12,18 @@ spring:
     hibernate:
       ddl-auto: validate
 
+  # Slightly above app.receipts.max-file-size-bytes so the service can answer with a clear 422.
+  servlet:
+    multipart:
+      max-file-size: 6MB
+      max-request-size: 6MB
+
 app:
   bootstrap-admin:
     email: ${BOOTSTRAP_ADMIN_EMAIL:admin@company.com}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
     full-name: System Administrator
+
+  receipts:
+    storage-directory: ${RECEIPT_STORAGE_DIR:./data/receipts}
+    max-file-size-bytes: 5242880
