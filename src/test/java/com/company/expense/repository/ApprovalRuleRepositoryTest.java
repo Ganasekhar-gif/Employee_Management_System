@@ -55,9 +55,9 @@ class ApprovalRuleRepositoryTest {
     @Test
     void allowsSharedPriorityOnlyAmongInactiveRules() {
         save("Old", null, null, "0", null, 1, false);
-        save("Current", null, null, "0", null, 1, true);
+        ApprovalRule current = save("Current", null, null, "0", null, 1, true);
 
-        assertThat(ruleRepository.existsByPriorityAndActiveTrue(1)).isTrue();
+        assertThat(ruleRepository.findByPriorityAndActiveTrue(1)).contains(current);
         assertThatThrownBy(() -> save("Clash", null, null, "0", null, 1, true))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }

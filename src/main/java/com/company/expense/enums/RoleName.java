@@ -11,7 +11,7 @@ public enum RoleName {
     }
 
     public boolean canSubmitExpenses() {
-        return this == EMPLOYEE || this == MANAGER;
+        return this != ADMIN;
     }
 
     public boolean canBeNamedApprover() {

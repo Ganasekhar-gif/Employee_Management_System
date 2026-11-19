@@ -14,8 +14,8 @@ import org.springframework.data.repository.query.Param;
 public interface ExpenseApprovalStepRepository extends JpaRepository<ExpenseApprovalStep, Long> {
 
     default List<ExpenseApprovalStep> findActionableFor(User approver) {
-        return findActionable(approver, approver.hasRole(RoleName.FINANCE),
-                ApprovalStepStatus.PENDING, ExpenseStatus.SUBMITTED, ApproverType.FINANCE_ROLE);
+        return findActionable(approver, approver.hasRole(RoleName.FINANCE), approver.hasRole(RoleName.ADMIN),
+                ApprovalStepStatus.PENDING, ExpenseStatus.SUBMITTED, ApproverType.FINANCE_ROLE, ApproverType.ADMIN_ROLE);
     }
 
     // A step is actionable when no earlier step of the same submission is still pending.
@@ -28,7 +28,8 @@ public interface ExpenseApprovalStepRepository extends JpaRepository<ExpenseAppr
               and e.status = :submitted
               and e.employee <> :approver
               and (s.assignedApprover = :approver
-                   or (s.approverType = :financeRole and :isFinance = true))
+                   or (s.approverType = :financeRole and :isFinance = true)
+                   or (s.approverType = :adminRole and :isAdmin = true))
               and not exists (
                   select 1 from ExpenseApprovalStep earlier
                   where earlier.expense = e
@@ -40,9 +41,11 @@ public interface ExpenseApprovalStepRepository extends JpaRepository<ExpenseAppr
     List<ExpenseApprovalStep> findActionable(
             @Param("approver") User approver,
             @Param("isFinance") boolean isFinance,
+            @Param("isAdmin") boolean isAdmin,
             @Param("pending") ApprovalStepStatus pending,
             @Param("submitted") ExpenseStatus submitted,
-            @Param("financeRole") ApproverType financeRole);
+            @Param("financeRole") ApproverType financeRole,
+            @Param("adminRole") ApproverType adminRole);
 
     @Query("""
             select s from ExpenseApprovalStep s

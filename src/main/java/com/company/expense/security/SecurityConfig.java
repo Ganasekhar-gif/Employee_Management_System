@@ -23,6 +23,7 @@ public class SecurityConfig {
         String employee = RoleName.EMPLOYEE.name();
         String manager = RoleName.MANAGER.name();
         String finance = RoleName.FINANCE.name();
+        String admin = RoleName.ADMIN.name();
         return http
                 // No session cookie is issued, so there is nothing for CSRF to ride on.
                 // Revisit if the API moves to cookie-based sessions.
@@ -37,12 +38,12 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/index.html", "/favicon.svg", "/css/**", "/js/**")
                         .permitAll()
-                        .requestMatchers("/api/admin/**").hasRole(RoleName.ADMIN.name())
+                        .requestMatchers("/api/admin/**").hasRole(admin)
                         .requestMatchers("/api/finance/**").hasRole(finance)
-                        .requestMatchers("/api/approvals/**").hasAnyRole(manager, finance)
-                        .requestMatchers(HttpMethod.POST, "/api/expenses/**").hasAnyRole(employee, manager)
-                        .requestMatchers(HttpMethod.PUT, "/api/expenses/**").hasAnyRole(employee, manager)
-                        .requestMatchers(HttpMethod.DELETE, "/api/expenses/**").hasAnyRole(employee, manager)
+                        .requestMatchers("/api/approvals/**").hasAnyRole(manager, finance, admin)
+                        .requestMatchers(HttpMethod.POST, "/api/expenses/**").hasAnyRole(employee, manager, finance)
+                        .requestMatchers(HttpMethod.PUT, "/api/expenses/**").hasAnyRole(employee, manager, finance)
+                        .requestMatchers(HttpMethod.DELETE, "/api/expenses/**").hasAnyRole(employee, manager, finance)
                         .anyRequest().authenticated())
                 .build();
     }

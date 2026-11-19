@@ -9,10 +9,16 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Entity
 @Table(name = "users")
 public class User extends TimestampedEntity {
+
+    /** name@domain.tld: dot-separated local part, hyphen-safe domain labels, and a letters-only top-level domain. */
+    public static final String EMAIL_PATTERN = "^[A-Za-z0-9_%+-]+(\\.[A-Za-z0-9_%+-]+)*"
+            + "@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$";
+    private static final Pattern EMAIL = Pattern.compile(EMAIL_PATTERN);
 
     private String email;
 
@@ -39,6 +45,9 @@ public class User extends TimestampedEntity {
 
     public User(String email, String passwordHash, String fullName, Role role, Department department) {
         this.email = normalizeEmail(email);
+        if (!EMAIL.matcher(this.email).matches()) {
+            throw new BusinessRuleException("Email must look like name@company.com");
+        }
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.fullName = Objects.requireNonNull(fullName, "fullName").trim();
         this.role = Objects.requireNonNull(role, "role");

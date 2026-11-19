@@ -192,6 +192,38 @@ class ExpenseWorkflowIntegrationTest {
     }
 
     @Test
+    void onlyOneOpenExpensePerCategory() throws Exception {
+        long first = createExpense(mealsId, "120.00");
+        perform(EMPLOYEE, post("/api/expenses"), expenseJson(mealsId, "80.00", "Dinner"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(containsString("#" + first)));
+        long travel = id(perform(EMPLOYEE, post("/api/expenses"), expenseJson(travelId, "900.00", "Cab"))
+                .andExpect(status().isCreated()));
+        perform(EMPLOYEE, put("/api/expenses/{id}", travel), expenseJson(mealsId, "900.00", "Cab"))
+                .andExpect(status().isUnprocessableContent());
+
+        perform(EMPLOYEE, post("/api/expenses/{id}/submit", first)).andExpect(status().isOk());
+        perform(EMPLOYEE, post("/api/expenses"), expenseJson(mealsId, "80.00", "Dinner"))
+                .andExpect(status().isUnprocessableContent());
+
+        perform(MANAGER, post("/api/approvals/{id}/reject", first), "{\"reason\": \"Wrong date\"}")
+                .andExpect(status().isOk());
+        long replacement = createExpense(mealsId, "80.00");
+        perform(EMPLOYEE, post("/api/expenses/{id}/submit", first))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(containsString("#" + replacement)));
+    }
+
+    @Test
+    void rejectsMalformedEmail() throws Exception {
+        perform(ADMIN, post("/api/admin/users"), """
+                {"email": "asha@company", "password": "%s", "fullName": "Asha", "role": "FINANCE"}
+                """.formatted(PASSWORD))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.email").value("must look like name@company.com"));
+    }
+
+    @Test
     void managerNamedByRuleIsNotAskedTwice() throws Exception {
         long managerId = ((Number) JsonPath.read(perform(MANAGER, get("/api/auth/me"))
                 .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
@@ -222,10 +254,61 @@ class ExpenseWorkflowIntegrationTest {
 
         perform(EMPLOYEE, get("/api/finance/expenses")).andExpect(status().isForbidden());
         perform(EMPLOYEE, get("/api/approvals")).andExpect(status().isForbidden());
-        perform(FINANCE, post("/api/expenses"), expenseJson(mealsId, "10.00", "Lunch"))
-                .andExpect(status().isForbidden());
         perform(ADMIN, post("/api/expenses"), expenseJson(mealsId, "10.00", "Lunch"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void financeExpenseGoesToAdminAndThenAnotherFinanceUser() throws Exception {
+        perform(ADMIN, post("/api/admin/approval-rules"), """
+                {"name": "Meals review", "categoryId": %d, "priority": 5, "steps": [{"approverType": "FINANCE_ROLE"}]}
+                """.formatted(mealsId)).andExpect(status().isCreated());
+        long expenseId = id(perform(FINANCE, post("/api/expenses"), expenseJson(mealsId, "300.00", "Team lunch"))
+                .andExpect(status().isCreated()));
+
+        perform(FINANCE, post("/api/expenses/{id}/submit", expenseId))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(containsString("no other active finance user")));
+
+        createUser("fin2@company.com", "FINANCE", null, null);
+        perform(FINANCE, post("/api/expenses/{id}/submit", expenseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.approvalSteps[*].approverType", contains("ADMIN_ROLE", "FINANCE_ROLE")));
+
+        perform(ADMIN, get("/api/approvals")).andExpect(jsonPath("$[*].expenseId", contains((int) expenseId)));
+        perform(ADMIN, post("/api/approvals/{id}/approve", expenseId)).andExpect(status().isOk());
+
+        perform(FINANCE, get("/api/approvals")).andExpect(jsonPath("$", hasSize(0)));
+        perform(FINANCE, post("/api/approvals/{id}/approve", expenseId)).andExpect(status().isForbidden());
+        perform("fin2@company.com", post("/api/approvals/{id}/approve", expenseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+
+    @Test
+    void adminCanEditRule() throws Exception {
+        long ruleId = id(perform(ADMIN, post("/api/admin/approval-rules"), """
+                {"name": "Travel", "categoryId": %d, "priority": 7, "steps": [{"approverType": "FINANCE_ROLE"}]}
+                """.formatted(travelId)).andExpect(status().isCreated()));
+        perform(ADMIN, post("/api/admin/approval-rules"), """
+                {"name": "Other", "priority": 8, "steps": [{"approverType": "FINANCE_ROLE"}]}
+                """).andExpect(status().isCreated());
+        long managerId = ((Number) JsonPath.read(perform(MANAGER, get("/api/auth/me"))
+                .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+
+        perform(ADMIN, put("/api/admin/approval-rules/{id}", ruleId), """
+                {"name": "Big travel", "categoryId": %d, "minAmount": 5000, "priority": 6,
+                 "steps": [{"approverType": "SPECIFIC_USER", "approverUserId": %d}, {"approverType": "FINANCE_ROLE"}]}
+                """.formatted(travelId, managerId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Big travel"))
+                .andExpect(jsonPath("$.priority").value(6))
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.steps[*].approverType", contains("SPECIFIC_USER", "FINANCE_ROLE")));
+
+        perform(ADMIN, put("/api/admin/approval-rules/{id}", ruleId), """
+                {"name": "Big travel", "priority": 8, "steps": [{"approverType": "FINANCE_ROLE"}]}
+                """).andExpect(status().isConflict());
     }
 
     @Test

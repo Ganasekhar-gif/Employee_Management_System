@@ -22,9 +22,10 @@ export async function approvalQueueView({ user }) {
 
     return h('div', {},
         pageHeader('Approval queue',
-            user.role === 'FINANCE'
-                ? 'Expenses waiting for a finance review. They appear here once every earlier approver has signed off.'
-                : 'Expenses from your team that are waiting for your decision.',
+            {
+                FINANCE: 'Expenses waiting for a finance review. They appear here once every earlier approver has signed off. Your own expenses are reviewed by a colleague.',
+                ADMIN: 'Expenses from people who have no manager to approve them, such as department heads and finance staff.',
+            }[user.role] || 'Expenses from your team that are waiting for your decision.',
             [linkButton('🕘 My decisions', '#/approvals/history')]),
         h('div', { class: 'stats' },
             stat('Waiting for you', tasks.length),

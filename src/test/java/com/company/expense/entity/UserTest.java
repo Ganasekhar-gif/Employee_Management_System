@@ -19,6 +19,24 @@ class UserTest {
         assertThat(user.getEmail()).isEqualTo("asha.rao@company.com");
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "plainaddress", "asha@", "@company.com", "asha@company", "asha@company.c", "asha..rao@company.com",
+            ".asha@company.com", "asha.@company.com", "asha@-company.com", "asha@company-.com", "asha@company..com",
+            "asha rao@company.com", "asha@company.com.", "asha@company.123"})
+    void rejectsMalformedEmails(String email) {
+        assertThatThrownBy(() -> employee(email, engineering))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("name@company.com");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "asha@company.com", "asha.rao@company.com", "asha+travel@company.co.in", "a_rao@finance-team.company.org"})
+    void acceptsWellFormedEmails(String email) {
+        assertThat(employee(email, engineering).getEmail()).isEqualTo(email);
+    }
+
     @Test
     void requiresDepartmentForEmployees() {
         assertThatThrownBy(() -> employee("asha@company.com", null))

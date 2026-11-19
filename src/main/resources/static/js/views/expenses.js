@@ -12,7 +12,10 @@ export const STEP_LABELS = {
     MANAGER: 'Manager approval',
     FINANCE_ROLE: 'Finance review',
     SPECIFIC_USER: 'Named approver',
+    ADMIN_ROLE: 'Admin approval',
 };
+
+const TEAM_NAMES = { FINANCE_ROLE: 'the finance team', ADMIN_ROLE: 'the admin team' };
 
 const STATUS_FILTERS = [
     { status: '', label: 'All expenses' },
@@ -430,7 +433,7 @@ function timeline(steps, current) {
             h('div', { class: 'marker' }, marker),
             h('div', { class: 'title' }, STEP_LABELS[step.approverType],
                 step.status === 'PENDING' && !isCurrent ? h('span', { class: 'badge skipped' }, 'Upcoming') : statusBadge(step.status)),
-            h('div', { class: 'meta' }, step.assignedApproverName ? `Approver: ${step.assignedApproverName}` : 'Any member of the finance team'),
+            h('div', { class: 'meta' }, step.assignedApproverName ? `Approver: ${step.assignedApproverName}` : `Any member of ${TEAM_NAMES[step.approverType]}`),
             h('div', { class: 'meta' }, meta),
             step.comment ? h('div', { class: 'comment' }, `“${step.comment}”`) : null);
     }));
@@ -455,7 +458,7 @@ function groupBySubmission(steps) {
 }
 
 function approverName(step) {
-    return step?.assignedApproverName || 'the finance team';
+    return step?.assignedApproverName || TEAM_NAMES[step?.approverType] || 'the next approver';
 }
 
 function receiptUrl(expense, receipt) {

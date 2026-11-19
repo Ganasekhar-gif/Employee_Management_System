@@ -100,13 +100,108 @@ class ExpenseTest {
     }
 
     @Test
-    void submitFailsWhenNoManagerCanApprove() {
+    void managerNamedFirstByRuleReplacesDefaultManager() {
+        User departmentHead = new User("head@company.com", "hash", "Dept Head", new Role(RoleName.MANAGER), engineering);
+        engineering.assignManager(departmentHead);
         User newcomer = new User("ravi@company.com", "hash", "Ravi", new Role(RoleName.EMPLOYEE), engineering);
+        ApprovalRule teamTravel = new ApprovalRule("Team travel", null, null, null, null, 2);
+        teamTravel.addStep(ApproverType.SPECIFIC_USER, manager);
+        teamTravel.addStep(ApproverType.FINANCE_ROLE, null);
+        teamTravel.activate();
         Expense expense = new Expense(newcomer, meals, BigDecimal.TEN, LocalDate.now(), "Lunch");
 
-        assertThatThrownBy(() -> expense.submit(null))
-                .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("No active manager");
+        expense.submit(teamTravel);
+
+        assertThat(expense.getApprovalSteps())
+                .extracting(ExpenseApprovalStep::getStepOrder, ExpenseApprovalStep::getApproverType,
+                        ExpenseApprovalStep::getAssignedApprover)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(1, ApproverType.MANAGER, manager),
+                        org.assertj.core.groups.Tuple.tuple(2, ApproverType.FINANCE_ROLE, null));
+    }
+
+    @Test
+    void nonManagerNamedFirstByRuleKeepsDefaultManagerFirst() {
+        ApprovalRule financeFirst = new ApprovalRule("Named finance", null, null, null, null, 2);
+        financeFirst.addStep(ApproverType.SPECIFIC_USER, finance);
+        financeFirst.activate();
+        Expense expense = expense(meals, "120.00");
+
+        expense.submit(financeFirst);
+
+        assertThat(expense.getApprovalSteps())
+                .extracting(ExpenseApprovalStep::getAssignedApprover)
+                .containsExactly(manager, finance);
+    }
+
+    @Test
+    void managerSubmittingOwnExpenseSkipsRuleStepNamingThemselves() {
+        User departmentHead = new User("head@company.com", "hash", "Dept Head", new Role(RoleName.MANAGER), engineering);
+        manager.assignManager(departmentHead);
+        ApprovalRule teamTravel = new ApprovalRule("Team travel", null, null, null, null, 2);
+        teamTravel.addStep(ApproverType.SPECIFIC_USER, manager);
+        teamTravel.addStep(ApproverType.FINANCE_ROLE, null);
+        teamTravel.activate();
+        Expense expense = new Expense(manager, meals, BigDecimal.TEN, LocalDate.now(), "Taxi");
+
+        expense.submit(teamTravel);
+
+        assertThat(expense.getApprovalSteps())
+                .extracting(ExpenseApprovalStep::getApproverType, ExpenseApprovalStep::getAssignedApprover)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(ApproverType.MANAGER, departmentHead),
+                        org.assertj.core.groups.Tuple.tuple(ApproverType.FINANCE_ROLE, null));
+    }
+
+    @Test
+    void goesToAdminTeamWhenNoManagerCanApprove() {
+        User newcomer = new User("ravi@company.com", "hash", "Ravi", new Role(RoleName.EMPLOYEE), engineering);
+        User admin = new User("admin@company.com", "hash", "Admin", new Role(RoleName.ADMIN), null);
+        Expense expense = new Expense(newcomer, meals, BigDecimal.TEN, LocalDate.now(), "Lunch");
+
+        expense.submit(null);
+
+        assertThat(expense.getApprovalSteps()).singleElement()
+                .satisfies(step -> {
+                    assertThat(step.getApproverType()).isEqualTo(ApproverType.ADMIN_ROLE);
+                    assertThat(step.getAssignedApprover()).isNull();
+                });
+        assertThat(expense.canBeDecidedBy(admin)).isTrue();
+        assertThat(expense.canBeDecidedBy(manager)).isFalse();
+        expense.approve(admin, null);
+        assertThat(expense.getStatus()).isEqualTo(ExpenseStatus.APPROVED);
+    }
+
+    @Test
+    void departmentManagerWithoutOwnManagerGoesToAdminThenRuleSteps() {
+        engineering.assignManager(manager);
+        Expense expense = new Expense(manager, meals, BigDecimal.TEN, LocalDate.now(), "Taxi");
+
+        expense.submit(alwaysFinance());
+
+        assertThat(expense.getApprovalSteps())
+                .extracting(ExpenseApprovalStep::getApproverType)
+                .containsExactly(ApproverType.ADMIN_ROLE, ApproverType.FINANCE_ROLE);
+    }
+
+    @Test
+    void financeUserCanSubmitButNotReviewOwnExpense() {
+        Expense expense = new Expense(finance, meals, BigDecimal.TEN, LocalDate.now(), "Software licence");
+        User admin = new User("admin@company.com", "hash", "Admin", new Role(RoleName.ADMIN), null);
+
+        expense.submit(alwaysFinance());
+        expense.approve(admin, null);
+
+        assertThat(expense.canBeDecidedBy(finance)).isFalse();
+        User colleague = new User("fin2@company.com", "hash", "Finance Two", new Role(RoleName.FINANCE), null);
+        assertThat(expense.canBeDecidedBy(colleague)).isTrue();
+    }
+
+    private ApprovalRule alwaysFinance() {
+        ApprovalRule rule = new ApprovalRule("Finance for all", null, null, null, null, 3);
+        rule.addStep(ApproverType.FINANCE_ROLE, null);
+        rule.activate();
+        return rule;
     }
 
     @Test

@@ -67,10 +67,8 @@ public class ExpenseApprovalStep extends BaseEntity {
         if (!actor.isActive() || expense.isOwnedBy(actor)) {
             return false;
         }
-        if (approverType == ApproverType.FINANCE_ROLE) {
-            return actor.hasRole(RoleName.FINANCE);
-        }
-        return actor.equals(assignedApprover);
+        RoleName sharedRole = approverType.sharedRole();
+        return sharedRole != null ? actor.hasRole(sharedRole) : actor.equals(assignedApprover);
     }
 
     public boolean involves(User user) {

@@ -72,7 +72,7 @@ public class Expense extends TimestampedEntity {
     public Expense(User employee, ExpenseCategory category, BigDecimal amount, LocalDate expenseDate,
             String description) {
         if (!employee.getRole().getName().canSubmitExpenses()) {
-            throw new BusinessRuleException("Only Employee and Manager users can create expenses");
+            throw new BusinessRuleException("Admins cannot create expenses");
         }
         this.employee = employee;
         applyDetails(category, amount, expenseDate, description);
@@ -109,6 +109,8 @@ public class Expense extends TimestampedEntity {
 
     /**
      * Builds the approval steps for a new submission: the manager step first, then the rule's steps.
+     * When the rule's first step names a Manager, that manager takes the manager step; otherwise the
+     * employee's direct manager does, falling back to the department manager, and finally to the admin team.
      *
      * @param applicableRule the matched rule, or {@code null} when no rule applies
      * @return the submission number, which is greater than 1 for a resubmission
@@ -123,13 +125,24 @@ public class Expense extends TimestampedEntity {
         }
 
         int submissionNo = currentSubmissionNo() + 1;
-        User manager = resolveManager();
-        approvalSteps.add(new ExpenseApprovalStep(
-                this, null, submissionNo, 1, ApproverType.MANAGER, manager));
+        List<ApprovalRuleStep> ruleSteps = applicableRule == null ? List.of() : applicableRule.getSteps();
+        User firstNamed = ruleSteps.isEmpty() ? null : ruleSteps.get(0).getApproverUser();
+        boolean ruleChoosesManager = firstNamed != null
+                && firstNamed.hasRole(RoleName.MANAGER) && !firstNamed.equals(employee);
+        User manager = ruleChoosesManager ? resolveRuleApprover(applicableRule, ruleSteps.get(0)) : resolveManager();
+        approvalSteps.add(new ExpenseApprovalStep(this, ruleChoosesManager ? applicableRule : null,
+                submissionNo, 1, manager == null ? ApproverType.ADMIN_ROLE : ApproverType.MANAGER, manager));
         if (applicableRule != null) {
-            List<User> namedApprovers = new ArrayList<>(List.of(manager));
+            List<User> namedApprovers = new ArrayList<>();
+            if (manager != null) {
+                namedApprovers.add(manager);
+            }
             int stepOrder = 1;
-            for (ApprovalRuleStep ruleStep : applicableRule.getSteps()) {
+            for (ApprovalRuleStep ruleStep : ruleSteps) {
+                // Nobody approves their own expense; their manager in step 1 still reviews it.
+                if (employee.equals(ruleStep.getApproverUser())) {
+                    continue;
+                }
                 User approver = resolveRuleApprover(applicableRule, ruleStep);
                 // A person who already approves earlier in this path would only be asked the same question twice.
                 if (approver != null && namedApprovers.contains(approver)) {
@@ -198,11 +211,10 @@ public class Expense extends TimestampedEntity {
         if (isOwnedBy(user) || approvalSteps.stream().anyMatch(step -> step.involves(user))) {
             return true;
         }
-        if (user.hasRole(RoleName.FINANCE)) {
-            return status == ExpenseStatus.APPROVED
-                    || actionableStep().filter(step -> step.getApproverType() == ApproverType.FINANCE_ROLE).isPresent();
+        if (user.hasRole(RoleName.FINANCE) && status == ExpenseStatus.APPROVED) {
+            return true;
         }
-        return false;
+        return actionableStep().filter(step -> user.hasRole(step.getApproverType().sharedRole())).isPresent();
     }
 
     public boolean isEditable() {
@@ -235,12 +247,11 @@ public class Expense extends TimestampedEntity {
         }
     }
 
+    /** The direct or department manager, or {@code null} when nobody can act as this person's manager. */
     private User resolveManager() {
         User manager = employee.approvingManager();
-        if (manager == null || manager.equals(employee) || !manager.canManage(employee.getDepartment())) {
-            throw new BusinessRuleException("No active manager is available to approve this expense");
-        }
-        return manager;
+        boolean usable = manager != null && !manager.equals(employee) && manager.canManage(employee.getDepartment());
+        return usable ? manager : null;
     }
 
     private User resolveRuleApprover(ApprovalRule rule, ApprovalRuleStep ruleStep) {

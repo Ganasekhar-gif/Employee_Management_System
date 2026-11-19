@@ -11,12 +11,12 @@ const FINANCE = 'FINANCE';
 const ADMIN = 'ADMIN';
 
 const routes = [
-    { path: '/expenses', view: expenseListView, roles: [EMPLOYEE, MANAGER] },
-    { path: '/expenses/new', view: expenseFormView, roles: [EMPLOYEE, MANAGER] },
-    { path: '/expenses/:id/edit', view: expenseFormView, roles: [EMPLOYEE, MANAGER] },
-    { path: '/expenses/:id', view: expenseDetailView, roles: [EMPLOYEE, MANAGER, FINANCE] },
-    { path: '/approvals', view: approvalQueueView, roles: [MANAGER, FINANCE] },
-    { path: '/approvals/history', view: approvalHistoryView, roles: [MANAGER, FINANCE] },
+    { path: '/expenses', view: expenseListView, roles: [EMPLOYEE, MANAGER, FINANCE] },
+    { path: '/expenses/new', view: expenseFormView, roles: [EMPLOYEE, MANAGER, FINANCE] },
+    { path: '/expenses/:id/edit', view: expenseFormView, roles: [EMPLOYEE, MANAGER, FINANCE] },
+    { path: '/expenses/:id', view: expenseDetailView, roles: [EMPLOYEE, MANAGER, FINANCE, ADMIN] },
+    { path: '/approvals', view: approvalQueueView, roles: [MANAGER, FINANCE, ADMIN] },
+    { path: '/approvals/history', view: approvalHistoryView, roles: [MANAGER, FINANCE, ADMIN] },
     { path: '/finance', view: financeView, roles: [FINANCE] },
     { path: '/admin/users', view: usersView, roles: [ADMIN] },
     { path: '/admin/departments', view: departmentsView, roles: [ADMIN] },
@@ -45,8 +45,14 @@ const NAVIGATION = {
         { section: 'Approvals' },
         { href: '/approvals', icon: '✅', label: 'Approval queue', queue: true },
         { href: '/approvals/history', icon: '🕘', label: 'My decisions' },
+        { section: 'My work' },
+        { href: '/expenses', icon: '🧾', label: 'My expenses' },
+        { href: '/expenses/new', icon: '➕', label: 'New expense' },
     ],
     [ADMIN]: [
+        { section: 'Approvals' },
+        { href: '/approvals', icon: '✅', label: 'Approval queue', queue: true },
+        { href: '/approvals/history', icon: '🕘', label: 'My decisions' },
         { section: 'Organisation' },
         { href: '/admin/users', icon: '👥', label: 'Users' },
         { href: '/admin/departments', icon: '🏢', label: 'Departments' },
@@ -81,7 +87,7 @@ export function highlightNav(href) {
 
 export function refreshQueueCount() {
     const badgeElement = document.querySelector('[data-queue-count]');
-    if (!badgeElement || ![MANAGER, FINANCE].includes(currentUser?.role)) {
+    if (!badgeElement || ![MANAGER, FINANCE, ADMIN].includes(currentUser?.role)) {
         return;
     }
     api('/api/approvals')

@@ -39,12 +39,23 @@ export async function usersView() {
     const usersById = byId(users);
     const departmentsById = byId(departments);
     const counts = Object.fromEntries(ROLES.map((role) => [role, users.filter((u) => u.role === role && u.active).length]));
+    const needsApprover = (u) => u.active && u.role !== 'ADMIN';
+    const withoutManager = users.filter((u) => needsApprover(u) && ROLES_WITH_DEPARTMENT.includes(u.role)
+        && !approverOf(u, usersById, departmentsById));
+
+    const renderApprover = (u) => {
+        if (!needsApprover(u)) return h('span', { class: 'muted' }, '—');
+        const approver = approverOf(u, usersById, departmentsById);
+        if (!approver) return h('div', {}, 'Admin team', h('div', { class: 'muted small' }, 'No manager available'));
+        return u.managerId ? approver.fullName
+            : h('div', {}, approver.fullName, h('div', { class: 'muted small' }, 'Department manager'));
+    };
 
     const columns = [
         { label: 'User', render: (u) => h('div', {}, h('div', { class: 'strong' }, u.fullName), h('div', { class: 'muted small' }, u.email)) },
         { label: 'Role', render: (u) => badge(format.title(u.role), 'role') },
         { label: 'Department', render: (u) => departmentsById.get(u.departmentId)?.name || h('span', { class: 'muted' }, '—') },
-        { label: 'Direct manager', render: (u) => usersById.get(u.managerId)?.fullName || h('span', { class: 'muted' }, ROLES_WITH_DEPARTMENT.includes(u.role) ? 'Department manager' : '—') },
+        { label: 'Approver', render: renderApprover },
         { label: 'Status', render: activeBadge },
         {
             label: '', numeric: true, render: (u) => h('div', { class: 'actions' },
@@ -65,7 +76,19 @@ export async function usersView() {
         h('div', { class: 'stats' }, ROLES.map((role) => stat(ROLE_PLURALS[role], counts[role], 'active'))),
         departments.length ? null : h('div', { class: 'mb' }, callout('info', 'Start with a department',
             'Employees and managers must belong to a department. Create one on the Departments page first.')),
+        withoutManager.length ? h('div', { class: 'mb' }, callout('info', 'Approved by the admin team',
+            `${withoutManager.map((u) => u.fullName).join(', ')} ${withoutManager.length === 1 ? 'has' : 'have'} no manager, so admins approve their expenses first. `
+            + 'If that is not intended, give them a direct manager or set a manager for their department.')) : null,
         h('section', { class: 'card' }, table(columns, users)));
+}
+
+// Mirrors the server: the direct manager approves, otherwise the department manager — never the person themselves.
+// null means the admin team approves.
+function approverOf(user, usersById, departmentsById) {
+    const direct = usersById.get(user.managerId);
+    if (direct) return direct.active ? direct : null;
+    const departmentManager = usersById.get(departmentsById.get(user.departmentId)?.managerId);
+    return departmentManager && departmentManager.active && departmentManager.id !== user.id ? departmentManager : null;
 }
 
 function managerOptions(users, departmentId, excludeId) {
@@ -84,7 +107,11 @@ function newUserDialog(users, departments) {
         const needsDepartment = ROLES_WITH_DEPARTMENT.includes(role.value);
         department.required = needsDepartment;
         managerField.hidden = !needsDepartment;
-        manager.replaceChildren(h('option', { value: '' }, 'Use the department manager'),
+        const departmentManager = users.find((u) => u.id === departments.find((d) => d.id === Number(department.value))?.managerId);
+        const fallback = !department.value ? 'Use the department manager'
+            : departmentManager ? `Use the department manager (${departmentManager.fullName})`
+                : 'None — this department has no manager yet, so admins approve';
+        manager.replaceChildren(h('option', { value: '' }, fallback),
             ...managerOptions(users, department.value).map((o) => h('option', { value: String(o.value) }, o.label)));
     };
     role.addEventListener('change', refresh);
@@ -277,40 +304,53 @@ export async function rulesView() {
                 h('span', { class: 'chip' }, `Department: ${rule.departmentId ? departmentsById.get(rule.departmentId)?.name : 'Any'}`),
                 h('span', { class: 'chip' }, `Amount: ${amountRange(rule)}`)),
             h('div', { class: 'path' },
-                h('span', { class: 'node fixed' }, 'Manager'),
-                rule.steps.map((step) => [h('span', { class: 'arrow' }, '→'), h('span', { class: 'node' }, describeStep(step))]),
+                h('span', { class: 'node fixed' }, namesManagerFirst(rule, usersById)
+                    ? `Manager: ${describeStep(rule.steps[0])}` : 'Employee\'s manager'),
+                rule.steps.slice(namesManagerFirst(rule, usersById) ? 1 : 0)
+                    .map((step) => [h('span', { class: 'arrow' }, '→'), h('span', { class: 'node' }, describeStep(step))]),
                 h('span', { class: 'arrow' }, '→'), h('span', { class: 'node fixed' }, 'Approved'))),
-        rule.active
-            ? button('Deactivate', () => guarded(async () => {
-                await api(`/api/admin/approval-rules/${rule.id}/deactivate`, { method: 'POST' });
-                reloadAfter('Rule deactivated')();
-            }), 'btn-sm')
-            : button('Activate', () => guarded(async () => {
-                await api(`/api/admin/approval-rules/${rule.id}/activate`, { method: 'POST' });
-                reloadAfter('Rule activated')();
-            }), 'btn-sm')))
+        h('div', { class: 'actions' },
+            button('Edit', () => ruleDialog(categories, departments, users, rule), 'btn-sm'),
+            rule.active
+                ? button('Deactivate', () => guarded(async () => {
+                    await api(`/api/admin/approval-rules/${rule.id}/deactivate`, { method: 'POST' });
+                    reloadAfter('Rule deactivated')();
+                }), 'btn-sm')
+                : button('Activate', () => guarded(async () => {
+                    await api(`/api/admin/approval-rules/${rule.id}/activate`, { method: 'POST' });
+                    reloadAfter('Rule activated')();
+                }), 'btn-sm'))))
         : emptyState('🔀', 'No rules yet', 'Without rules, the manager\'s approval is enough for every expense.');
 
     return h('div', {},
-        pageHeader('Approval rules', 'Rules add approvers after the mandatory manager step.',
+        pageHeader('Approval rules', 'Rules choose who approves after, or instead of, the employee\'s usual manager.',
             [button('➕ New rule', () => ruleDialog(categories, departments, users), 'btn-primary')]),
         h('div', { class: 'mb' }, callout('info', 'How rules are chosen',
-            'On submit, the active rule with the lowest priority whose category, department and amount all match is used. Its steps are copied onto the expense, so later rule changes never affect expenses already submitted.')),
+            'On submit, only one rule is used: of all active rules whose category, department and amount match the expense, the one with the lowest priority number wins. '
+            + 'Give specific rules (for example, Travel over ₹50,000) a lower number than general ones (Travel of any amount). '
+            + 'Its steps are copied onto the expense, so editing a rule never changes expenses already submitted.')),
         h('section', { class: 'card' }, list));
 }
 
-function ruleDialog(categories, departments, users) {
+// Mirrors the server: a Manager named in the first step becomes the manager approval itself.
+function namesManagerFirst(rule, usersById) {
+    const first = rule.steps[0];
+    return first?.approverType === 'SPECIFIC_USER' && usersById.get(first.approverUserId)?.role === 'MANAGER';
+}
+
+function ruleDialog(categories, departments, users, rule = null) {
     const approvers = users
         .filter((u) => u.active && (u.role === 'MANAGER' || u.role === 'FINANCE'))
         .map((u) => ({ value: u.id, label: `${u.fullName} (${format.title(u.role)})` }));
     const stepsContainer = h('div', { class: 'stack' });
+    const value = (number) => (number === null || number === undefined ? '' : String(number));
 
-    const addStep = () => {
+    const addStep = (step = null) => {
         const type = select('approverType', [
             { value: 'FINANCE_ROLE', label: 'Finance team (anyone)' },
             { value: 'SPECIFIC_USER', label: 'Specific person' },
-        ], 'FINANCE_ROLE');
-        const person = select('approverUserId', approvers, '', { placeholder: 'Choose a person' });
+        ], step?.approverType || 'FINANCE_ROLE');
+        const person = select('approverUserId', approvers, value(step?.approverUserId), { placeholder: 'Choose a person' });
         const sync = () => {
             person.disabled = type.value !== 'SPECIFIC_USER';
             person.required = type.value === 'SPECIFIC_USER';
@@ -326,27 +366,31 @@ function ruleDialog(categories, departments, users) {
         renumber();
     };
     const renumber = () => stepsContainer.querySelectorAll('.step-row .n').forEach((n, index) => { n.textContent = index + 2; });
-    addStep();
+    (rule ? rule.steps : [null]).forEach(addStep);
 
     const options = (items) => items.map((item) => ({ value: item.id, label: item.name }));
+    const categoryOptions = categories.filter((c) => c.active || c.id === rule?.categoryId);
     formDialog({
-        title: 'New approval rule',
-        submitLabel: 'Create rule',
+        title: rule ? `Edit rule: ${rule.name}` : 'New approval rule',
+        submitLabel: rule ? 'Save changes' : 'Create rule',
         wide: true,
         fields: [
             h('div', { class: 'form-grid' },
-                field('Name', h('input', { name: 'name', required: true, maxlength: '150', placeholder: 'Large spend needs finance review' }), { name: 'name', full: true }),
-                field('Category', select('categoryId', options(categories.filter((c) => c.active)), '', { placeholder: 'Any category' }), { name: 'categoryId' }),
-                field('Department', select('departmentId', options(departments), '', { placeholder: 'Any department' }), { name: 'departmentId' }),
-                field('Minimum amount (INR)', h('input', { name: 'minAmount', type: 'number', min: '0', step: '0.01', placeholder: '0.00' }), { name: 'minAmount', hint: 'Inclusive. Empty means 0.' }),
-                field('Maximum amount (INR)', h('input', { name: 'maxAmount', type: 'number', min: '0', step: '0.01', placeholder: 'No limit' }), { name: 'maxAmount', hint: 'Inclusive. Empty means no upper limit.' }),
-                field('Priority', h('input', { name: 'priority', type: 'number', min: '1', step: '1', required: true, value: '1' }), { name: 'priority', hint: 'Lower number wins. Must be unique among active rules.' }),
-                h('label', { class: 'checkbox' }, h('input', { type: 'checkbox', name: 'active', checked: true }), 'Activate immediately')),
+                field('Name', h('input', { name: 'name', required: true, maxlength: '150', placeholder: 'Large spend needs finance review', value: rule?.name || '' }), { name: 'name', full: true }),
+                field('Category', select('categoryId', options(categoryOptions), value(rule?.categoryId), { placeholder: 'Any category' }), { name: 'categoryId' }),
+                field('Department', select('departmentId', options(departments), value(rule?.departmentId), { placeholder: 'Any department' }), { name: 'departmentId' }),
+                field('Minimum amount (INR)', h('input', { name: 'minAmount', type: 'number', min: '0', step: '0.01', placeholder: '0.00', value: value(rule?.minAmount) }), { name: 'minAmount', hint: 'Inclusive. Empty means 0.' }),
+                field('Maximum amount (INR)', h('input', { name: 'maxAmount', type: 'number', min: '0', step: '0.01', placeholder: 'No limit', value: value(rule?.maxAmount) }), { name: 'maxAmount', hint: 'Inclusive. Empty means no upper limit.' }),
+                field('Priority', h('input', { name: 'priority', type: 'number', min: '1', step: '1', required: true, value: value(rule?.priority ?? 1) }), { name: 'priority', hint: 'When several active rules match an expense, the lowest number wins. Must be unique among active rules.' }),
+                rule ? h('div', { class: 'muted small' }, 'Changes apply to expenses submitted from now on. Expenses already in approval keep their current path.')
+                    : h('label', { class: 'checkbox' }, h('input', { type: 'checkbox', name: 'active', checked: true }), 'Activate immediately')),
             h('div', { class: 'field' },
                 h('label', {}, 'Approval path'),
                 h('div', { class: 'step-row' }, h('span', { class: 'n' }, '1'), h('span', { class: 'strong' }, 'Employee\'s manager'), h('span', { class: 'muted small' }, 'Always first — added automatically'), h('span')),
                 stepsContainer,
-                h('div', {}, button('➕ Add step', addStep, 'btn-sm'))),
+                h('div', {}, button('➕ Add step', () => addStep(), 'btn-sm')),
+                h('div', { class: 'hint' }, 'If step 2 is a specific Manager, that manager approves first instead of the employee\'s usual manager. '
+                    + 'Otherwise step 1 is the employee\'s direct manager, then their department manager, and finally the admin team if neither exists.')),
         ],
         onSubmit: async (data, form) => {
             const steps = [...form.querySelectorAll('.step-row')].filter((row) => row.querySelector('select')).map((row) => {
@@ -356,8 +400,8 @@ function ruleDialog(categories, departments, users) {
             if (!steps.length) {
                 throw Object.assign(new Error('Add at least one step after the manager.'), { fieldErrors: {} });
             }
-            await api('/api/admin/approval-rules', {
-                method: 'POST',
+            await api(rule ? `/api/admin/approval-rules/${rule.id}` : '/api/admin/approval-rules', {
+                method: rule ? 'PUT' : 'POST',
                 body: {
                     name: data.get('name'),
                     categoryId: emptyToNull(data.get('categoryId')),
@@ -369,7 +413,7 @@ function ruleDialog(categories, departments, users) {
                     steps,
                 },
             });
-            reloadAfter('Rule created')();
+            reloadAfter(rule ? 'Rule updated' : 'Rule created')();
         },
     });
 }

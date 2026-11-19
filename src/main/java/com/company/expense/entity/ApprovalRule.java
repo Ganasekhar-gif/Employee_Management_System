@@ -47,6 +47,12 @@ public class ApprovalRule extends TimestampedEntity {
 
     public ApprovalRule(String name, ExpenseCategory category, Department department,
             BigDecimal minAmount, BigDecimal maxAmount, int priority) {
+        update(name, category, department, minAmount, maxAmount, priority);
+    }
+
+    /** Changes only this rule; expenses already submitted keep the steps that were copied onto them. */
+    public void update(String name, ExpenseCategory category, Department department,
+            BigDecimal minAmount, BigDecimal maxAmount, int priority) {
         BigDecimal min = minAmount == null ? BigDecimal.ZERO : minAmount;
         if (min.signum() < 0) {
             throw new BusinessRuleException("Minimum amount cannot be negative");
@@ -64,7 +70,7 @@ public class ApprovalRule extends TimestampedEntity {
 
     public void addStep(ApproverType approverType, User approverUser) {
         switch (approverType) {
-            case MANAGER -> throw new BusinessRuleException(
+            case MANAGER, ADMIN_ROLE -> throw new BusinessRuleException(
                     "Manager approval is always the first step and cannot be added to a rule");
             case FINANCE_ROLE -> {
                 if (approverUser != null) {
@@ -82,6 +88,10 @@ public class ApprovalRule extends TimestampedEntity {
             }
         }
         steps.add(new ApprovalRuleStep(this, steps.size() + 1, approverType, approverUser));
+    }
+
+    public void clearSteps() {
+        steps.clear();
     }
 
     public void activate() {

@@ -1,6 +1,6 @@
 package com.company.expense.service.impl;
 
-import com.company.expense.dto.request.CreateApprovalRuleRequest;
+import com.company.expense.dto.request.ApprovalRuleRequest;
 import com.company.expense.dto.response.ApprovalRuleResponse;
 import com.company.expense.entity.ApprovalRule;
 import com.company.expense.entity.Department;
@@ -45,17 +45,15 @@ public class ApprovalRuleServiceImpl implements ApprovalRuleService {
     }
 
     @Override
-    public ApprovalRuleResponse createRule(Long actorId, CreateApprovalRuleRequest request) {
+    public ApprovalRuleResponse createRule(Long actorId, ApprovalRuleRequest request) {
         ExpenseCategory category = request.categoryId() == null ? null : findCategory(request.categoryId());
         Department department = request.departmentId() == null ? null : findDepartment(request.departmentId());
 
         ApprovalRule rule = new ApprovalRule(request.name(), category, department,
                 request.minAmount(), request.maxAmount(), request.priority());
-        request.steps().forEach(step -> rule.addStep(
-                step.approverType(),
-                step.approverUserId() == null ? null : findUser(step.approverUserId())));
+        addSteps(rule, request);
         if (request.activeOrDefault()) {
-            requirePriorityAvailable(rule.getPriority());
+            requirePriorityAvailable(rule.getPriority(), null);
             rule.activate();
         }
 
@@ -72,10 +70,30 @@ public class ApprovalRuleServiceImpl implements ApprovalRuleService {
     }
 
     @Override
+    public ApprovalRuleResponse updateRule(Long actorId, Long ruleId, ApprovalRuleRequest request) {
+        ApprovalRule rule = findRule(ruleId);
+        if (rule.isActive()) {
+            requirePriorityAvailable(request.priority(), ruleId);
+        }
+        rule.update(request.name(),
+                request.categoryId() == null ? null : findCategory(request.categoryId()),
+                request.departmentId() == null ? null : findDepartment(request.departmentId()),
+                request.minAmount(), request.maxAmount(), request.priority());
+        rule.clearSteps();
+        // Old steps must be deleted before the new ones reuse their step numbers.
+        ruleRepository.flush();
+        addSteps(rule, request);
+
+        auditLogService.record(findUser(actorId), AuditEntityType.APPROVAL_RULE, ruleId, AuditAction.UPDATE,
+                Map.of("name", rule.getName(), "priority", rule.getPriority(), "stepCount", rule.getSteps().size()));
+        return ApprovalRuleResponse.from(rule);
+    }
+
+    @Override
     public ApprovalRuleResponse activateRule(Long actorId, Long ruleId) {
         ApprovalRule rule = findRule(ruleId);
         if (!rule.isActive()) {
-            requirePriorityAvailable(rule.getPriority());
+            requirePriorityAvailable(rule.getPriority(), ruleId);
             rule.activate();
             auditLogService.record(findUser(actorId), AuditEntityType.APPROVAL_RULE, ruleId, AuditAction.ACTIVATE,
                     Map.of("priority", rule.getPriority()));
@@ -94,8 +112,17 @@ public class ApprovalRuleServiceImpl implements ApprovalRuleService {
         return ApprovalRuleResponse.from(rule);
     }
 
-    private void requirePriorityAvailable(int priority) {
-        if (ruleRepository.existsByPriorityAndActiveTrue(priority)) {
+    private void addSteps(ApprovalRule rule, ApprovalRuleRequest request) {
+        request.steps().forEach(step -> rule.addStep(
+                step.approverType(),
+                step.approverUserId() == null ? null : findUser(step.approverUserId())));
+    }
+
+    private void requirePriorityAvailable(int priority, Long ruleId) {
+        boolean taken = ruleRepository.findByPriorityAndActiveTrue(priority)
+                .filter(other -> !other.getId().equals(ruleId))
+                .isPresent();
+        if (taken) {
             throw new DuplicateResourceException("Another active rule already uses priority " + priority);
         }
     }

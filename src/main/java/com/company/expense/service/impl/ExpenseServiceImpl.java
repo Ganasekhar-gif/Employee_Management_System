@@ -11,10 +11,12 @@ import com.company.expense.entity.Expense;
 import com.company.expense.entity.ExpenseCategory;
 import com.company.expense.entity.Receipt;
 import com.company.expense.entity.User;
+import com.company.expense.enums.ApproverType;
 import com.company.expense.enums.AuditAction;
 import com.company.expense.enums.AuditEntityType;
 import com.company.expense.enums.ExpenseStatus;
 import com.company.expense.enums.ReceiptFileType;
+import com.company.expense.enums.RoleName;
 import com.company.expense.exception.BusinessRuleException;
 import com.company.expense.exception.ResourceNotFoundException;
 import com.company.expense.repository.ExpenseCategoryRepository;
@@ -42,6 +44,7 @@ import org.springframework.util.StringUtils;
 public class ExpenseServiceImpl implements ExpenseService {
 
     private static final int MAX_FILE_NAME_LENGTH = 255;
+    private static final List<ExpenseStatus> OPEN_STATUSES = List.of(ExpenseStatus.DRAFT, ExpenseStatus.SUBMITTED);
 
     private final ExpenseRepository expenseRepository;
     private final ExpenseCategoryRepository categoryRepository;
@@ -70,8 +73,10 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     @Override
     public ExpenseResponse createExpense(Long actorId, ExpenseRequest request) {
-        User employee = findUser(actorId);
-        Expense expense = new Expense(employee, findCategory(request.categoryId()),
+        User employee = lockUser(actorId);
+        ExpenseCategory category = findCategory(request.categoryId());
+        requireNoOtherOpenExpense(employee, category, null);
+        Expense expense = new Expense(employee, category,
                 request.amount(), request.expenseDate(), request.description());
         Expense saved = expenseRepository.save(expense);
         auditLogService.record(employee, AuditEntityType.EXPENSE, saved.getId(), AuditAction.CREATE,
@@ -82,8 +87,9 @@ public class ExpenseServiceImpl implements ExpenseService {
     @Override
     public ExpenseResponse updateExpense(Long actorId, Long expenseId, ExpenseRequest request) {
         Expense expense = findOwnExpenseForUpdate(actorId, expenseId);
-        expense.updateDetails(findCategory(request.categoryId()),
-                request.amount(), request.expenseDate(), request.description());
+        ExpenseCategory category = findCategory(request.categoryId());
+        requireNoOtherOpenExpense(expense.getEmployee(), category, expenseId);
+        expense.updateDetails(category, request.amount(), request.expenseDate(), request.description());
         return ExpenseResponse.from(expense, expense.getEmployee());
     }
 
@@ -143,7 +149,9 @@ public class ExpenseServiceImpl implements ExpenseService {
     @Override
     public ExpenseResponse submitExpense(Long actorId, Long expenseId) {
         Expense expense = findOwnExpenseForUpdate(actorId, expenseId);
+        requireNoOtherOpenExpense(expense.getEmployee(), expense.getCategory(), expenseId);
         Optional<ApprovalRule> rule = ruleMatcher.findApplicableRule(expense);
+        requireFinanceReviewerOtherThanSubmitter(expense, rule.orElse(null));
         int submissionNo = expense.submit(rule.orElse(null));
         expenseRepository.flush();
 
@@ -172,9 +180,30 @@ public class ExpenseServiceImpl implements ExpenseService {
         return ExpenseResponse.from(findViewableExpense(actor, expenseId), actor);
     }
 
+    // Submitters never see their own expense in the finance queue, so someone else must be able to take the step.
+    private void requireFinanceReviewerOtherThanSubmitter(Expense expense, ApprovalRule rule) {
+        boolean needsFinanceReview = rule != null && rule.getSteps().stream()
+                .anyMatch(step -> step.getApproverType() == ApproverType.FINANCE_ROLE);
+        if (needsFinanceReview && expense.getEmployee().hasRole(RoleName.FINANCE)
+                && userRepository.countByRole_NameAndActiveTrue(RoleName.FINANCE) < 2) {
+            throw new BusinessRuleException(
+                    "This expense needs a finance review, and there is no other active finance user to review it");
+        }
+    }
+
+    // Rejected expenses do not count: they cannot be deleted, so counting them could block a category forever.
+    private void requireNoOtherOpenExpense(User employee, ExpenseCategory category, Long excludedExpenseId) {
+        List<Long> openIds = expenseRepository.findOtherIdsInCategory(
+                employee, category, OPEN_STATUSES, excludedExpenseId);
+        if (!openIds.isEmpty()) {
+            throw new BusinessRuleException("You already have an open " + category.getName() + " expense (#"
+                    + openIds.get(0) + ") that is a draft or awaiting approval. Finish it before starting another");
+        }
+    }
+
     // Someone else's expense is reported as missing so that ids cannot be probed.
     private Expense findOwnExpenseForUpdate(Long actorId, Long expenseId) {
-        User actor = findUser(actorId);
+        User actor = lockUser(actorId);
         return expenseRepository.findByIdForUpdate(expenseId)
                 .filter(expense -> expense.isOwnedBy(actor))
                 .orElseThrow(() -> new ResourceNotFoundException("Expense", expenseId));
@@ -242,6 +271,11 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+    }
+
+    private User lockUser(Long userId) {
+        return userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
     }
 }

@@ -5,13 +5,14 @@ import com.company.expense.entity.Department;
 import com.company.expense.entity.ExpenseCategory;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ApprovalRuleRepository extends JpaRepository<ApprovalRule, Long> {
 
-    boolean existsByPriorityAndActiveTrue(int priority);
+    Optional<ApprovalRule> findByPriorityAndActiveTrue(int priority);
 
     List<ApprovalRule> findAllByOrderByPriorityAscIdAsc();
 

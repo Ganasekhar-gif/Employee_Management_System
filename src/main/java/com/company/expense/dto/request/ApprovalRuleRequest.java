@@ -12,13 +12,14 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
-public record CreateApprovalRuleRequest(
+public record ApprovalRuleRequest(
         @NotBlank @Size(max = 150) String name,
         Long categoryId,
         Long departmentId,
         @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal minAmount,
         @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal maxAmount,
         @NotNull @Min(1) Integer priority,
+        // Only read on create; an edit keeps the rule's current state.
         Boolean active,
         @NotEmpty List<@Valid Step> steps) {
 
