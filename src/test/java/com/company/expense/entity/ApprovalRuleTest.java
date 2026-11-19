@@ -62,6 +62,17 @@ class ApprovalRuleTest {
     }
 
     @Test
+    void rejectsSamePersonTwiceInOneRule() {
+        ApprovalRule rule = new ApprovalRule("Any", null, null, null, null, 1);
+        User director = new User("dir@company.com", "hash", "Director", new Role(RoleName.MANAGER), engineering);
+        rule.addStep(ApproverType.SPECIFIC_USER, director);
+
+        assertThatThrownBy(() -> rule.addStep(ApproverType.SPECIFIC_USER, director))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("already a step");
+    }
+
+    @Test
     void financeStepMustNotNameUser() {
         ApprovalRule rule = new ApprovalRule("Any", null, null, null, null, 1);
         User finance = new User("fin@company.com", "hash", "Finance", new Role(RoleName.FINANCE), null);

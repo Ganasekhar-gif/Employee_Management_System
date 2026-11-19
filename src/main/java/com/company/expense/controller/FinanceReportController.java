@@ -1,6 +1,7 @@
 package com.company.expense.controller;
 
 import com.company.expense.dto.request.FinanceReportFilter;
+import com.company.expense.dto.response.FinanceLookupsResponse;
 import com.company.expense.dto.response.FinanceReportResponse;
 import com.company.expense.security.AuthenticatedUser;
 import com.company.expense.service.FinanceReportService;
@@ -25,6 +26,11 @@ public class FinanceReportController {
 
     public FinanceReportController(FinanceReportService reportService) {
         this.reportService = reportService;
+    }
+
+    @GetMapping("/filters")
+    public FinanceLookupsResponse filterOptions() {
+        return reportService.filterOptions();
     }
 
     @GetMapping

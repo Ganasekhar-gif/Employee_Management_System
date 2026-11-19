@@ -5,6 +5,7 @@ import com.company.expense.enums.ExpenseStatus;
 import com.company.expense.enums.RoleName;
 import com.company.expense.exception.BusinessRuleException;
 import com.company.expense.exception.ForbiddenOperationException;
+import com.company.expense.exception.ResourceNotFoundException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -57,7 +58,7 @@ public class Expense extends TimestampedEntity {
 
     private Instant submittedAt;
 
-    @OneToMany(mappedBy = "expense", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "expense", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id")
     private List<Receipt> receipts = new ArrayList<>();
 
@@ -91,6 +92,21 @@ public class Expense extends TimestampedEntity {
         return receipt;
     }
 
+    // Approvers may already have reviewed receipts on a resubmitted expense, so those stay as evidence.
+    public Receipt removeReceipt(Long receiptId) {
+        if (!isNeverSubmittedDraft()) {
+            throw new BusinessRuleException("Receipts can only be removed before the expense is first submitted");
+        }
+        Receipt receipt = findReceipt(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt", receiptId));
+        receipts.remove(receipt);
+        return receipt;
+    }
+
+    public boolean isNeverSubmittedDraft() {
+        return status == ExpenseStatus.DRAFT && approvalSteps.isEmpty();
+    }
+
     /**
      * Builds the approval steps for a new submission: the manager step first, then the rule's steps.
      *
@@ -107,14 +123,23 @@ public class Expense extends TimestampedEntity {
         }
 
         int submissionNo = currentSubmissionNo() + 1;
+        User manager = resolveManager();
         approvalSteps.add(new ExpenseApprovalStep(
-                this, null, submissionNo, 1, ApproverType.MANAGER, resolveManager()));
+                this, null, submissionNo, 1, ApproverType.MANAGER, manager));
         if (applicableRule != null) {
-            List<ApprovalRuleStep> ruleSteps = applicableRule.getSteps();
-            for (int index = 0; index < ruleSteps.size(); index++) {
-                ApprovalRuleStep ruleStep = ruleSteps.get(index);
-                approvalSteps.add(new ExpenseApprovalStep(this, applicableRule, submissionNo, index + 2,
-                        ruleStep.getApproverType(), resolveRuleApprover(applicableRule, ruleStep)));
+            List<User> namedApprovers = new ArrayList<>(List.of(manager));
+            int stepOrder = 1;
+            for (ApprovalRuleStep ruleStep : applicableRule.getSteps()) {
+                User approver = resolveRuleApprover(applicableRule, ruleStep);
+                // A person who already approves earlier in this path would only be asked the same question twice.
+                if (approver != null && namedApprovers.contains(approver)) {
+                    continue;
+                }
+                if (approver != null) {
+                    namedApprovers.add(approver);
+                }
+                approvalSteps.add(new ExpenseApprovalStep(this, applicableRule, submissionNo, ++stepOrder,
+                        ruleStep.getApproverType(), approver));
             }
         }
         status = ExpenseStatus.SUBMITTED;
@@ -159,6 +184,10 @@ public class Expense extends TimestampedEntity {
                 .mapToInt(ExpenseApprovalStep::getSubmissionNo)
                 .max()
                 .orElse(0);
+    }
+
+    public boolean canBeDecidedBy(User user) {
+        return actionableStep().filter(step -> step.canBeDecidedBy(user)).isPresent();
     }
 
     public boolean isOwnedBy(User user) {

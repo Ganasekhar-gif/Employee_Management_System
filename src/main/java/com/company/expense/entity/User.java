@@ -80,8 +80,16 @@ public class User extends TimestampedEntity {
         return role.getName() == roleName;
     }
 
+    public void removeManager() {
+        this.manager = null;
+    }
+
     public void deactivate() {
         this.active = false;
+    }
+
+    public void activate() {
+        this.active = true;
     }
 
     public String getEmail() {

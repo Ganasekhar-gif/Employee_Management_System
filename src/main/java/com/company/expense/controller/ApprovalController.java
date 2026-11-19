@@ -3,6 +3,7 @@ package com.company.expense.controller;
 import com.company.expense.dto.request.ApprovalDecisionRequest;
 import com.company.expense.dto.request.RejectionRequest;
 import com.company.expense.dto.response.ApprovalTaskResponse;
+import com.company.expense.dto.response.DecisionHistoryResponse;
 import com.company.expense.dto.response.ExpenseResponse;
 import com.company.expense.security.AuthenticatedUser;
 import com.company.expense.service.ApprovalService;
@@ -29,6 +30,11 @@ public class ApprovalController {
     @GetMapping
     public List<ApprovalTaskResponse> listPendingApprovals(@AuthenticationPrincipal AuthenticatedUser principal) {
         return approvalService.listPendingApprovals(principal.id());
+    }
+
+    @GetMapping("/history")
+    public List<DecisionHistoryResponse> listDecisionHistory(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return approvalService.listDecisionHistory(principal.id());
     }
 
     @PostMapping("/{expenseId}/approve")

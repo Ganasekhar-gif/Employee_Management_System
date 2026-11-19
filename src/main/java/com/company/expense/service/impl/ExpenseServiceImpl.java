@@ -76,7 +76,7 @@ public class ExpenseServiceImpl implements ExpenseService {
         Expense saved = expenseRepository.save(expense);
         auditLogService.record(employee, AuditEntityType.EXPENSE, saved.getId(), AuditAction.CREATE,
                 Map.of("amount", saved.getAmount(), "categoryId", saved.getCategory().getId()));
-        return ExpenseResponse.from(saved);
+        return ExpenseResponse.from(saved, employee);
     }
 
     @Override
@@ -84,7 +84,19 @@ public class ExpenseServiceImpl implements ExpenseService {
         Expense expense = findOwnExpenseForUpdate(actorId, expenseId);
         expense.updateDetails(findCategory(request.categoryId()),
                 request.amount(), request.expenseDate(), request.description());
-        return ExpenseResponse.from(expense);
+        return ExpenseResponse.from(expense, expense.getEmployee());
+    }
+
+    @Override
+    public void deleteExpense(Long actorId, Long expenseId) {
+        Expense expense = findOwnExpenseForUpdate(actorId, expenseId);
+        if (!expense.isNeverSubmittedDraft()) {
+            throw new BusinessRuleException("Only drafts that were never submitted can be deleted");
+        }
+        expense.getReceipts().forEach(receipt -> deleteFileAfterCommit(receipt.getStoragePath()));
+        expenseRepository.delete(expense);
+        auditLogService.record(expense.getEmployee(), AuditEntityType.EXPENSE, expenseId, AuditAction.DELETE,
+                Map.of("amount", expense.getAmount(), "receiptCount", expense.getReceipts().size()));
     }
 
     @Override
@@ -110,9 +122,18 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
+    public void removeReceipt(Long actorId, Long expenseId, Long receiptId) {
+        Expense expense = findOwnExpenseForUpdate(actorId, expenseId);
+        Receipt receipt = expense.removeReceipt(receiptId);
+        deleteFileAfterCommit(receipt.getStoragePath());
+        auditLogService.record(expense.getEmployee(), AuditEntityType.EXPENSE, expenseId, AuditAction.REMOVE_RECEIPT,
+                Map.of("receiptId", receiptId, "fileName", receipt.getFileName()));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ReceiptDownload downloadReceipt(Long actorId, Long expenseId, Long receiptId) {
-        Expense expense = findViewableExpense(actorId, expenseId);
+        Expense expense = findViewableExpense(findUser(actorId), expenseId);
         Receipt receipt = expense.findReceipt(receiptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt", receiptId));
         return new ReceiptDownload(receipt.getFileName(), receipt.getContentType(),
@@ -132,7 +153,7 @@ public class ExpenseServiceImpl implements ExpenseService {
         rule.ifPresent(matched -> details.put("ruleId", matched.getId()));
         auditLogService.record(expense.getEmployee(), AuditEntityType.EXPENSE, expenseId,
                 submissionNo == 1 ? AuditAction.SUBMIT : AuditAction.RESUBMIT, details);
-        return ExpenseResponse.from(expense);
+        return ExpenseResponse.from(expense, expense.getEmployee());
     }
 
     @Override
@@ -147,7 +168,8 @@ public class ExpenseServiceImpl implements ExpenseService {
     @Override
     @Transactional(readOnly = true)
     public ExpenseResponse getExpense(Long actorId, Long expenseId) {
-        return ExpenseResponse.from(findViewableExpense(actorId, expenseId));
+        User actor = findUser(actorId);
+        return ExpenseResponse.from(findViewableExpense(actor, expenseId), actor);
     }
 
     // Someone else's expense is reported as missing so that ids cannot be probed.
@@ -158,8 +180,7 @@ public class ExpenseServiceImpl implements ExpenseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Expense", expenseId));
     }
 
-    private Expense findViewableExpense(Long actorId, Long expenseId) {
-        User actor = findUser(actorId);
+    private Expense findViewableExpense(User actor, Long expenseId) {
         return expenseRepository.findById(expenseId)
                 .filter(expense -> expense.canBeViewedBy(actor))
                 .orElseThrow(() -> new ResourceNotFoundException("Expense", expenseId));
@@ -188,6 +209,17 @@ public class ExpenseServiceImpl implements ExpenseService {
             @Override
             public void afterCompletion(int status) {
                 if (status != STATUS_COMMITTED) {
+                    receiptStorage.delete(storagePath);
+                }
+            }
+        });
+    }
+
+    private void deleteFileAfterCommit(String storagePath) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
                     receiptStorage.delete(storagePath);
                 }
             }

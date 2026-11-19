@@ -76,6 +76,9 @@ public class ApprovalRule extends TimestampedEntity {
                         || !approverUser.getRole().getName().canBeNamedApprover()) {
                     throw new BusinessRuleException("A SPECIFIC_USER step must name an active Manager or Finance user");
                 }
+                if (steps.stream().anyMatch(step -> approverUser.equals(step.getApproverUser()))) {
+                    throw new BusinessRuleException(approverUser.getFullName() + " is already a step in this rule");
+                }
             }
         }
         steps.add(new ApprovalRuleStep(this, steps.size() + 1, approverType, approverUser));

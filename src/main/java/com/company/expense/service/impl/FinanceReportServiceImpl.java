@@ -1,13 +1,17 @@
 package com.company.expense.service.impl;
 
 import com.company.expense.dto.request.FinanceReportFilter;
+import com.company.expense.dto.response.FinanceLookupsResponse;
 import com.company.expense.dto.response.FinanceReportResponse;
 import com.company.expense.entity.Expense;
 import com.company.expense.entity.User;
 import com.company.expense.enums.AuditAction;
 import com.company.expense.enums.AuditEntityType;
+import com.company.expense.enums.RoleName;
 import com.company.expense.exception.BusinessRuleException;
 import com.company.expense.exception.ResourceNotFoundException;
+import com.company.expense.repository.DepartmentRepository;
+import com.company.expense.repository.ExpenseCategoryRepository;
 import com.company.expense.repository.ExpenseRepository;
 import com.company.expense.repository.ExpenseSpecifications;
 import com.company.expense.repository.UserRepository;
@@ -15,6 +19,7 @@ import com.company.expense.service.AuditLogService;
 import com.company.expense.service.FinanceReportService;
 import com.company.expense.util.CsvWriter;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,18 +33,34 @@ public class FinanceReportServiceImpl implements FinanceReportService {
 
     private static final Sort REPORT_ORDER = Sort.by("expenseDate", "id");
     private static final List<String> CSV_HEADER = List.of(
-            "expense_id", "employee", "department", "category", "expense_date", "amount", "currency", "status",
+            "expense_id", "employee", "department", "category", "expense_date", "amount", "currency_code", "status",
             "submitted_at");
 
     private final ExpenseRepository expenseRepository;
     private final UserRepository userRepository;
+    private final DepartmentRepository departmentRepository;
+    private final ExpenseCategoryRepository categoryRepository;
     private final AuditLogService auditLogService;
 
     public FinanceReportServiceImpl(
-            ExpenseRepository expenseRepository, UserRepository userRepository, AuditLogService auditLogService) {
+            ExpenseRepository expenseRepository,
+            UserRepository userRepository,
+            DepartmentRepository departmentRepository,
+            ExpenseCategoryRepository categoryRepository,
+            AuditLogService auditLogService) {
         this.expenseRepository = expenseRepository;
         this.userRepository = userRepository;
+        this.departmentRepository = departmentRepository;
+        this.categoryRepository = categoryRepository;
         this.auditLogService = auditLogService;
+    }
+
+    @Override
+    public FinanceLookupsResponse filterOptions() {
+        return FinanceLookupsResponse.of(
+                departmentRepository.findAll(Sort.by("name")),
+                categoryRepository.findAll(Sort.by("name")),
+                userRepository.findByRole_NameInOrderByFullName(EnumSet.of(RoleName.EMPLOYEE, RoleName.MANAGER)));
     }
 
     @Override

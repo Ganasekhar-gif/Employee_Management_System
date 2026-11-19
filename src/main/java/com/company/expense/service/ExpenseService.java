@@ -14,7 +14,11 @@ public interface ExpenseService {
 
     ExpenseResponse updateExpense(Long actorId, Long expenseId, ExpenseRequest request);
 
+    void deleteExpense(Long actorId, Long expenseId);
+
     ExpenseResponse.ReceiptInfo uploadReceipt(Long actorId, Long expenseId, ReceiptUpload upload);
+
+    void removeReceipt(Long actorId, Long expenseId, Long receiptId);
 
     ReceiptDownload downloadReceipt(Long actorId, Long expenseId, Long receiptId);
 

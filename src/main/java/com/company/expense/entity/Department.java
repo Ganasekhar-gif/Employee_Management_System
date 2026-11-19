@@ -38,6 +38,10 @@ public class Department extends BaseEntity {
         this.manager = manager;
     }
 
+    public void removeManager() {
+        this.manager = null;
+    }
+
     public void deactivate() {
         this.active = false;
     }

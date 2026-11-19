@@ -13,4 +13,11 @@ public interface UserService {
     List<UserResponse> listUsers();
 
     UserResponse assignManager(Long userId, Long managerId);
+
+    /**
+     * Deactivates the user. A manager's direct reports move to the department manager in the same transaction.
+     */
+    UserResponse deactivateUser(Long actorId, Long userId);
+
+    UserResponse activateUser(Long actorId, Long userId);
 }

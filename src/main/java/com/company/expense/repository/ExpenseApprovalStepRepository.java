@@ -43,4 +43,16 @@ public interface ExpenseApprovalStepRepository extends JpaRepository<ExpenseAppr
             @Param("pending") ApprovalStepStatus pending,
             @Param("submitted") ExpenseStatus submitted,
             @Param("financeRole") ApproverType financeRole);
+
+    @Query("""
+            select s from ExpenseApprovalStep s
+            join fetch s.expense e
+            join fetch e.employee
+            join fetch e.category
+            where s.decidedBy = :approver
+            order by s.decidedAt desc, s.id desc
+            """)
+    List<ExpenseApprovalStep> findDecidedBy(@Param("approver") User approver);
+
+    long countByAssignedApproverAndStatus(User assignedApprover, ApprovalStepStatus status);
 }

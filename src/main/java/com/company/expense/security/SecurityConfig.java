@@ -4,7 +4,6 @@ import com.company.expense.enums.RoleName;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,24 +14,35 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
+    private static final String CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: blob:; "
+            + "frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        ProblemDetailSecurityHandler problemHandler = new ProblemDetailSecurityHandler();
+        String employee = RoleName.EMPLOYEE.name();
+        String manager = RoleName.MANAGER.name();
+        String finance = RoleName.FINANCE.name();
         return http
                 // No session cookie is issued, so there is nothing for CSRF to ride on.
-                // Revisit if a browser client starts sending HTTP Basic credentials.
+                // Revisit if the API moves to cookie-based sessions.
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .httpBasic(Customizer.withDefaults())
+                .httpBasic(basic -> basic.authenticationEntryPoint(problemHandler))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(problemHandler)
+                        .accessDeniedHandler(problemHandler))
+                .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/favicon.svg", "/css/**", "/js/**")
+                        .permitAll()
                         .requestMatchers("/api/admin/**").hasRole(RoleName.ADMIN.name())
-                        .requestMatchers("/api/finance/**").hasRole(RoleName.FINANCE.name())
-                        .requestMatchers("/api/approvals/**")
-                        .hasAnyRole(RoleName.MANAGER.name(), RoleName.FINANCE.name())
-                        .requestMatchers(HttpMethod.POST, "/api/expenses/**")
-                        .hasAnyRole(RoleName.EMPLOYEE.name(), RoleName.MANAGER.name())
-                        .requestMatchers(HttpMethod.PUT, "/api/expenses/**")
-                        .hasAnyRole(RoleName.EMPLOYEE.name(), RoleName.MANAGER.name())
+                        .requestMatchers("/api/finance/**").hasRole(finance)
+                        .requestMatchers("/api/approvals/**").hasAnyRole(manager, finance)
+                        .requestMatchers(HttpMethod.POST, "/api/expenses/**").hasAnyRole(employee, manager)
+                        .requestMatchers(HttpMethod.PUT, "/api/expenses/**").hasAnyRole(employee, manager)
+                        .requestMatchers(HttpMethod.DELETE, "/api/expenses/**").hasAnyRole(employee, manager)
                         .anyRequest().authenticated())
                 .build();
     }

@@ -1,6 +1,7 @@
 package com.company.expense.service.impl;
 
 import com.company.expense.dto.response.ApprovalTaskResponse;
+import com.company.expense.dto.response.DecisionHistoryResponse;
 import com.company.expense.dto.response.ExpenseResponse;
 import com.company.expense.entity.Expense;
 import com.company.expense.entity.ExpenseApprovalStep;
@@ -48,12 +49,20 @@ public class ApprovalServiceImpl implements ApprovalService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<DecisionHistoryResponse> listDecisionHistory(Long actorId) {
+        return stepRepository.findDecidedBy(findUser(actorId)).stream()
+                .map(DecisionHistoryResponse::from)
+                .toList();
+    }
+
+    @Override
     public ExpenseResponse approve(Long actorId, Long expenseId, String comment) {
         User actor = findUser(actorId);
         Expense expense = findDecidableExpense(actor, expenseId);
         ExpenseApprovalStep step = expense.approve(actor, comment);
         recordDecision(actor, expense, step, AuditAction.APPROVE);
-        return ExpenseResponse.from(expense);
+        return ExpenseResponse.from(expense, actor);
     }
 
     @Override
@@ -62,7 +71,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         Expense expense = findDecidableExpense(actor, expenseId);
         ExpenseApprovalStep step = expense.reject(actor, reason);
         recordDecision(actor, expense, step, AuditAction.REJECT);
-        return ExpenseResponse.from(expense);
+        return ExpenseResponse.from(expense, actor);
     }
 
     // Users who may not see the expense get 404; users who can see it but are not the current approver get 403.

@@ -127,6 +127,41 @@ class ExpenseTest {
     }
 
     @Test
+    void ruleNamingTheEmployeesManagerDoesNotAddSecondManagerStep() {
+        ApprovalRule managerAgain = new ApprovalRule("Travel sign-off", null, null, null, null, 2);
+        managerAgain.addStep(ApproverType.SPECIFIC_USER, manager);
+        managerAgain.addStep(ApproverType.FINANCE_ROLE, null);
+        managerAgain.activate();
+        Expense expense = expense(meals, "120.00");
+
+        expense.submit(managerAgain);
+
+        assertThat(expense.getApprovalSteps())
+                .extracting(ExpenseApprovalStep::getStepOrder, ExpenseApprovalStep::getApproverType)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(1, ApproverType.MANAGER),
+                        org.assertj.core.groups.Tuple.tuple(2, ApproverType.FINANCE_ROLE));
+
+        expense.approve(manager, null);
+        assertThat(expense.actionableStep()).get()
+                .extracting(ExpenseApprovalStep::getApproverType).isEqualTo(ApproverType.FINANCE_ROLE);
+    }
+
+    @Test
+    void ruleWhoseOnlyStepIsTheManagerLeavesJustTheManagerStep() {
+        ApprovalRule managerOnly = new ApprovalRule("Manager only", null, null, null, null, 2);
+        managerOnly.addStep(ApproverType.SPECIFIC_USER, manager);
+        managerOnly.activate();
+        Expense expense = expense(meals, "120.00");
+
+        expense.submit(managerOnly);
+        expense.approve(manager, null);
+
+        assertThat(expense.getApprovalSteps()).hasSize(1);
+        assertThat(expense.getStatus()).isEqualTo(ExpenseStatus.APPROVED);
+    }
+
+    @Test
     void financeCannotDecideBeforeManager() {
         Expense expense = submittedWithReceipt();
 
@@ -197,6 +232,39 @@ class ExpenseTest {
 
         expense.approve(manager, null);
         assertThat(expense.canBeViewedBy(finance)).isTrue();
+    }
+
+    @Test
+    void receiptsCanBeRemovedOnlyBeforeFirstSubmission() {
+        Expense expense = expense(travel, "900.00");
+        Receipt receipt = expense.addReceipt("ticket.pdf", "application/pdf", "1/ticket.pdf", 1024, employee);
+
+        assertThat(expense.isNeverSubmittedDraft()).isTrue();
+        assertThat(expense.removeReceipt(receipt.getId())).isSameAs(receipt);
+        assertThat(expense.getReceipts()).isEmpty();
+
+        Expense resubmittable = submittedWithReceipt();
+        resubmittable.reject(manager, "Wrong receipt");
+        Long reviewedReceiptId = resubmittable.getReceipts().get(0).getId();
+
+        assertThat(resubmittable.isNeverSubmittedDraft()).isFalse();
+        assertThat(resubmittable.isEditable()).isTrue();
+        assertThatThrownBy(() -> resubmittable.removeReceipt(reviewedReceiptId))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("before the expense is first submitted");
+    }
+
+    @Test
+    void reportsWhetherViewerCanDecideCurrentStep() {
+        Expense expense = submittedWithReceipt();
+
+        assertThat(expense.canBeDecidedBy(manager)).isTrue();
+        assertThat(expense.canBeDecidedBy(finance)).isFalse();
+        assertThat(expense.canBeDecidedBy(employee)).isFalse();
+
+        expense.approve(manager, null);
+        assertThat(expense.canBeDecidedBy(manager)).isFalse();
+        assertThat(expense.canBeDecidedBy(finance)).isTrue();
     }
 
     private Expense submittedWithReceipt() {

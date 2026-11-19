@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -191,6 +192,24 @@ class ExpenseWorkflowIntegrationTest {
     }
 
     @Test
+    void managerNamedByRuleIsNotAskedTwice() throws Exception {
+        long managerId = ((Number) JsonPath.read(perform(MANAGER, get("/api/auth/me"))
+                .andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        perform(ADMIN, post("/api/admin/approval-rules"), """
+                {"name": "Meals sign-off", "categoryId": %d, "priority": 2,
+                 "steps": [{"approverType": "SPECIFIC_USER", "approverUserId": %d}]}
+                """.formatted(mealsId, managerId))
+                .andExpect(status().isCreated());
+        long expenseId = createExpense(mealsId, "120.00");
+
+        perform(EMPLOYEE, post("/api/expenses/{id}/submit", expenseId))
+                .andExpect(jsonPath("$.approvalSteps", hasSize(1)))
+                .andExpect(jsonPath("$.approvalSteps[0].approverType").value("MANAGER"));
+        perform(MANAGER, post("/api/approvals/{id}/approve", expenseId))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+
+    @Test
     void rolesAndOwnershipAreEnforced() throws Exception {
         long expenseId = createExpense(travelId, "900.00");
         long receiptId = uploadPdf(expenseId);
@@ -236,6 +255,75 @@ class ExpenseWorkflowIntegrationTest {
     void financeReportRejectsInvertedDateRange() throws Exception {
         perform(FINANCE, get("/api/finance/expenses").param("from", "2026-02-01").param("to", "2026-01-01"))
                 .andExpect(status().isUnprocessableContent());
+    }
+
+    @Test
+    void draftCanBeCleanedUpButSubmittedExpenseCannot() throws Exception {
+        long draftId = createExpense(travelId, "900.00");
+        long receiptId = uploadPdf(draftId);
+
+        perform(EMPLOYEE, get("/api/expenses/{id}", draftId))
+                .andExpect(jsonPath("$.receiptRequired").value(true))
+                .andExpect(jsonPath("$.permissions.canEdit").value(true))
+                .andExpect(jsonPath("$.permissions.canDelete").value(true))
+                .andExpect(jsonPath("$.permissions.canDecide").value(false));
+        perform(EMPLOYEE, delete("/api/expenses/{id}/receipts/{receiptId}", draftId, receiptId))
+                .andExpect(status().isNoContent());
+        perform(EMPLOYEE, get("/api/expenses/{id}", draftId)).andExpect(jsonPath("$.receipts", hasSize(0)));
+        perform(EMPLOYEE, delete("/api/expenses/{id}", draftId)).andExpect(status().isNoContent());
+        perform(EMPLOYEE, get("/api/expenses/{id}", draftId)).andExpect(status().isNotFound());
+
+        long submittedId = createExpense(mealsId, "120.00");
+        perform(EMPLOYEE, post("/api/expenses/{id}/submit", submittedId)).andExpect(status().isOk());
+        perform(EMPLOYEE, delete("/api/expenses/{id}", submittedId)).andExpect(status().isUnprocessableContent());
+        perform(MANAGER, get("/api/expenses/{id}", submittedId))
+                .andExpect(jsonPath("$.permissions.canEdit").value(false))
+                .andExpect(jsonPath("$.permissions.canDecide").value(true));
+        perform(MANAGER, delete("/api/expenses/{id}", submittedId)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void approversSeeTheirDecisionHistory() throws Exception {
+        long expenseId = createExpense(mealsId, "120.00");
+        perform(EMPLOYEE, post("/api/expenses/{id}/submit", expenseId));
+        perform(MANAGER, post("/api/approvals/{id}/reject", expenseId), "{\"reason\": \"Personal lunch\"}");
+
+        perform(MANAGER, get("/api/approvals/history"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].expenseId").value(expenseId))
+                .andExpect(jsonPath("$[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$[0].comment").value("Personal lunch"))
+                .andExpect(jsonPath("$[0].expenseStatus").value("REJECTED"));
+        perform(EMPLOYEE, get("/api/approvals/history")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void financeGetsFilterOptions() throws Exception {
+        perform(FINANCE, get("/api/finance/expenses/filters"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.departments[0].name").value("Engineering"))
+                .andExpect(jsonPath("$.categories", hasSize(2)))
+                .andExpect(jsonPath("$.employees", hasSize(2)))
+                .andExpect(jsonPath("$.employees[0].detail").value("Engineering"));
+    }
+
+    @Test
+    void securityErrorsAreProblemDetailsAndWebUiIsPublic() throws Exception {
+        mockMvc.perform(get("/api/expenses").header("X-Requested-With", "XMLHttpRequest"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("WWW-Authenticate"))
+                .andExpect(jsonPath("$.status").value(401));
+        mockMvc.perform(get("/api/expenses"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().exists("WWW-Authenticate"));
+        perform(EMPLOYEE, get("/api/finance/expenses"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Your role does not allow this action"));
+
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy", containsString("default-src 'self'")));
+        mockMvc.perform(get("/js/app.js")).andExpect(status().isOk());
     }
 
     private long createExpense(long categoryId, String amount) throws Exception {

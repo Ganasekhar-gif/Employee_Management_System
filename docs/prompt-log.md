@@ -307,3 +307,14 @@ yeah 15 test cases run successfully so lets implement the next phase and tell me
 ### backend core implementation
 
 okay yeah all test cases passed and i have created the users in the database using curl commands above now lets move to the next implementation phase and implement a complete milestone now and design the api paths and design the workflow that employees can submit a finance report the admins can configure the rules and the system gives the approvers path and the manager and other approvers will approve or reject the finance report submitted by the user the user/employee can watch the status of their report over the time and manager and other approvers can access the report and be able to accept it or reject it with reason and finance team can export the reports so also design the other tables with the schema noted in the project documentation and complete the milestone and tell me what is implemented and how can i test it and after the milestone give me the commit message
+
+
+### Adding UI and remaining backend workflows
+
+okay all test cases are passed i have verified them manually lets now move ahead to the next phase implementation like the remaining backend workflows and also implement frontend using basic HTML and javascript with a nice UI with clear representation and clear workflows so with this implement a new milestone and give me a simple and clear commit message i will test the result and commit manually
+
+
+### Bug Fix and Final Implementation
+
+okay now can we complete the implementation of our project end to end 
+first there is a bug we need to fix it i have noticed if an admin configure and assigned a manager of an employee for approval then this system shows approval needed of manager but also shows next approval of the same manager required because of our rule if no one is assigned the team manager is the default approver so it shows again the manager approval needed so this is a duplication step happening here we have to fix this if system configures the manager approval is needed then we don't have to show the default manager permission required only once the manager approval is needed so fix this bug and to confirm end to end correct implementation i want to test it so give me some conditions where i can test end to end workflow and can detect possible bugs or issues then we can fix it and if now extra bugs or issues shown then it means we have completed our implementation and the project is completed and i already created the users as indicated above
